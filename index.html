@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Arqueiro Quadrático: O Jogo</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: 'Press Start 2P', cursive;
+        background-color: #1a1a1a;
+        color: #f1c40f;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+        user-select: none;
+      }
+
+      /* --- CONTAINER DO JOGO --- */
+      #game-wrapper {
+        position: relative;
+        width: 800px;
+        height: 600px;
+      }
+
+      #game-container {
+        position: relative;
+        border: 6px solid #5c3c18;
+        box-shadow: 0 0 30px rgba(0, 0, 0, 0.9);
+        image-rendering: pixelated;
+        width: 800px;
+        height: 500px;
+        background-color: #000;
+      }
+
+      canvas {
+        display: block;
+        background-color: #87ceeb;
+        cursor: crosshair;
+      }
+
+      /* --- UI / HUD (Placar e Inputs) --- */
+      #ui-layer {
+        background-color: #462e1b;
+        padding: 15px;
+        border: 4px solid #5c3c18;
+        border-top: none;
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        justify-content: center;
+        color: white;
+      }
+
+      input {
+        width: 60px;
+        padding: 10px;
+        border: 4px solid #2c1810;
+        text-align: center;
+        font-family: 'Press Start 2P', cursive;
+        font-size: 12px;
+        background-color: #c2b280;
+        color: #2c1810;
+      }
+      input:focus {
+        outline: none;
+        border-color: #f1c40f;
+      }
+
+      button {
+        padding: 12px 20px;
+        font-family: 'Press Start 2P', cursive;
+        font-size: 12px;
+        background-color: #e67e22;
+        color: #fff;
+        border: 4px solid #a84300;
+        cursor: pointer;
+        box-shadow: 0 4px #8e44ad;
+      }
+      button:active {
+        transform: translateY(4px);
+        box-shadow: 0 0 #8e44ad;
+      }
+      button:disabled {
+        background-color: #7f8c8d;
+        border-color: #555;
+        box-shadow: none;
+        cursor: not-allowed;
+      }
+
+      .equation {
+        font-size: 14px;
+        color: #fff;
+      }
+
+      /* --- HUD SUPERIOR (Placar e Tempo) --- */
+      #top-hud {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        display: flex;
+        justify-content: space-between;
+        pointer-events: none;
+        text-shadow: 2px 2px 0 #000;
+        z-index: 20; /* <--- CORREÇÃO AQUI: Garante que o HUD fique acima do overlay */
+      }
+
+      .score-box {
+        font-size: 16px;
+        color: #fff;
+      }
+      .score-player {
+        color: #2ecc71;
+      }
+      .score-enemy {
+        color: #e74c3c;
+      }
+
+      #timer-display {
+        font-size: 24px;
+        color: #fff;
+      }
+      .timer-danger {
+        color: #e74c3c !important;
+        animation: blink 0.5s infinite;
+      }
+
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
+
+      /* --- TELAS DE SOBREPOSIÇÃO (MENU e RESULTADO) --- */
+      .overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 800px;
+        height: 500px;
+        background-color: rgba(0, 0, 0, 0.85);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10; /* Menor que o z-index do #top-hud */
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      h1 {
+        font-size: 32px;
+        color: #f1c40f;
+        margin-bottom: 40px;
+        text-shadow: 4px 4px #a84300;
+        text-align: center;
+        line-height: 1.5;
+      }
+      h2 {
+        font-size: 24px;
+        margin-bottom: 20px;
+      }
+
+      #btn-start {
+        font-size: 20px;
+        padding: 20px 40px;
+        animation: pulse 1.5s infinite;
+      }
+
+      @keyframes pulse {
+        0% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.05);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+
+      #result-message {
+        font-size: 40px;
+        margin-bottom: 20px;
+        text-align: center;
+      }
+      #countdown-msg {
+        font-size: 12px;
+        color: #bdc3c7;
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-wrapper">
+      <div id="top-hud">
+        <div class="score-box score-player">
+          JOGADOR: <span id="p-score">0</span>
+        </div>
+        <div id="timer-display">15</div>
+        <div class="score-box score-enemy">
+          INIMIGO: <span id="e-score">0</span>
+        </div>
+      </div>
+
+      <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="500"></canvas>
+
+        <div id="menu-overlay" class="overlay">
+          <h1>ARQUEIRO<br />QUADRÁTICO</h1>
+          <button id="btn-start" onclick="startGame()">JOGAR</button>
+          <p style="color: #bdc3c7; font-size: 10px; margin-top: 30px">
+            Quem fizer 3 pontos vence!
+          </p>
+        </div>
+
+        <div id="result-overlay" class="overlay hidden">
+          <div id="result-message">VOCÊ GANHOU!</div>
+          <div id="final-score" style="font-size: 16px; color: white">
+            3 x 1
+          </div>
+          <div id="countdown-msg">Voltando ao menu em 5s...</div>
+        </div>
+      </div>
+
+      <div id="ui-layer">
+        <span class="equation">y = </span>
+        <input type="number" id="inputA" step="0.05" value="-0.1" />
+        <span class="equation">x² + </span>
+        <input type="number" id="inputB" step="0.5" value="2" />
+        <span class="equation">x + </span>
+        <input
+          type="number"
+          id="inputC"
+          value="10"
+          readonly
+          style="background-color: #7f8c8d; color: #333"
+          title="Altura da Torre (C)"
+        />
+
+        <button id="btn-fire" onclick="fireArrow()">DISPARAR!</button>
+      </div>
+    </div>
+
+    <script>
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+
+      // Elementos DOM
+      const inputA = document.getElementById('inputA');
+      const inputB = document.getElementById('inputB');
+      const inputC = document.getElementById('inputC');
+      const btnFire = document.getElementById('btn-fire');
+      const timerDisplay = document.getElementById('timer-display');
+      const pScoreDisplay = document.getElementById('p-score');
+      const eScoreDisplay = document.getElementById('e-score');
+
+      const menuOverlay = document.getElementById('menu-overlay');
+      const resultOverlay = document.getElementById('result-overlay');
+      const resultMessage = document.getElementById('result-message');
+      const finalScoreDisplay = document.getElementById('final-score');
+
+      // Configurações Gráficas
+      const scale = 20;
+      const originX = 50;
+      const originY = 450;
+      const pSize = 5;
+
+      // Estado do Jogo
+      let gameState = 'MENU'; // MENU, PLAYING, ANIMATING, ENDED
+      let apple = { x: 0, y: 0 };
+      let arrow = { x: 0, y: 0, active: false };
+      let params = { a: 0, b: 0, c: 10 };
+      let animationId;
+
+      // Variáveis da Partida
+      let playerScore = 0;
+      let enemyScore = 0;
+      let timeLeft = 15;
+      let timerInterval = null;
+      const MAX_SCORE = 3; // Jogo acaba quando alguém faz 3 pontos
+
+      // --- LÓGICA DE GERENCIAMENTO DE ESTADO ---
+
+      function startGame() {
+        playerScore = 0;
+        enemyScore = 0;
+        updateScoreBoard();
+
+        menuOverlay.classList.add('hidden');
+        resultOverlay.classList.add('hidden');
+
+        startRound();
+      }
+
+      function startRound() {
+        if (checkMatchEnd()) return;
+
+        gameState = 'PLAYING';
+        btnFire.disabled = false;
+
+        // Resetar Tempo
+        stopTimer();
+        timeLeft = 15;
+        updateTimerDisplay();
+        timerInterval = setInterval(gameLoopTimer, 1000);
+
+        // Gerar Nível
+        params.c = Math.floor(Math.random() * 14) + 5;
+        inputC.value = params.c;
+
+        apple.x = Math.floor(Math.random() * 20) + 15;
+        apple.y = Math.floor(Math.random() * 5) + 1;
+
+        // Resetar Flecha
+        arrow.active = false;
+        arrow.x = 0;
+        arrow.y = params.c;
+
+        // Resetar Inputs
+        inputA.value = '-0.1';
+        inputB.value = '1';
+
+        draw();
+      }
+
+      function gameLoopTimer() {
+        if (gameState !== 'PLAYING') return;
+
+        timeLeft--;
+        updateTimerDisplay();
+
+        if (timeLeft <= 0) {
+          handleRoundLoss('Tempo Esgotado!');
+        }
+      }
+
+      function updateTimerDisplay() {
+        timerDisplay.innerText = timeLeft;
+        if (timeLeft <= 5) {
+          timerDisplay.classList.add('timer-danger');
+        } else {
+          timerDisplay.classList.remove('timer-danger');
+        }
+      }
+
+      function stopTimer() {
+        if (timerInterval) clearInterval(timerInterval);
+      }
+
+      function handleRoundWin() {
+        stopTimer();
+        playerScore++;
+        updateScoreBoard();
+
+        ctx.fillStyle = 'rgba(46, 204, 113, 0.5)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        setTimeout(() => startRound(), 1000);
+      }
+
+      function handleRoundLoss(reason) {
+        stopTimer();
+        enemyScore++;
+        updateScoreBoard();
+        gameState = 'ANIMATING';
+        btnFire.disabled = true;
+
+        ctx.fillStyle = 'rgba(231, 76, 60, 0.5)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.font = "20px 'Press Start 2P'";
+        ctx.fillStyle = 'white';
+        // Ajusta a posição Y para que a mensagem não fique escondida atrás do HUD
+        ctx.fillText(reason || 'Errou!', 300, 250);
+
+        setTimeout(() => startRound(), 1500);
+      }
+
+      function updateScoreBoard() {
+        pScoreDisplay.innerText = playerScore;
+        eScoreDisplay.innerText = enemyScore;
+      }
+
+      function checkMatchEnd() {
+        if (playerScore >= MAX_SCORE || enemyScore >= MAX_SCORE) {
+          stopTimer();
+          gameState = 'ENDED';
+          showResultScreen(playerScore >= MAX_SCORE);
+          return true;
+        }
+        return false;
+      }
+
+      function showResultScreen(playerWon) {
+        resultOverlay.classList.remove('hidden');
+        finalScoreDisplay.innerText = `${playerScore} x ${enemyScore}`;
+
+        if (playerWon) {
+          resultMessage.innerText = 'VOCÊ GANHOU!';
+          resultMessage.style.color = '#2ecc71';
+        } else {
+          resultMessage.innerText = 'VOCÊ PERDEU!';
+          resultMessage.style.color = '#e74c3c';
+        }
+
+        let count = 5;
+        const countMsg = document.getElementById('countdown-msg');
+        countMsg.innerText = `Voltando ao menu em ${count}s...`;
+
+        const returnInterval = setInterval(() => {
+          count--;
+          countMsg.innerText = `Voltando ao menu em ${count}s...`;
+          if (count <= 0) {
+            clearInterval(returnInterval);
+            showMenu();
+          }
+        }, 1000);
+      }
+
+      function showMenu() {
+        resultOverlay.classList.add('hidden');
+        menuOverlay.classList.remove('hidden');
+        gameState = 'MENU';
+
+        params.c = 10;
+        inputC.value = 10;
+        apple.x = 20;
+        apple.y = 5;
+        arrow.x = 0;
+        arrow.y = 10;
+        arrow.active = false;
+        draw();
+      }
+
+      // --- FUNÇÕES DE DESENHO E FÍSICA ---
+
+      function toCanvas(x, y) {
+        return { x: originX + x * scale, y: originY - y * scale };
+      }
+
+      function drawPixelRect(x, y, color, cx, cy) {
+        ctx.fillStyle = color;
+        ctx.fillRect(cx + x * pSize, cy - y * pSize, pSize, pSize);
+      }
+
+      function drawForestBackground() {
+        ctx.fillStyle = '#63cdda';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.fillRect(200, 50, 100, 30);
+        ctx.fillRect(600, 100, 120, 30);
+        let groundY = originY;
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(0, groundY, canvas.width, 40);
+        ctx.fillStyle = '#cd6133';
+        ctx.fillRect(0, groundY + 40, canvas.width, canvas.height - groundY);
+      }
+
+      function drawCastleTower() {
+        let heightMath = params.c;
+        let pixelHeight = heightMath * scale;
+        let towerWidthPx = 3 * scale;
+        let towerHalfWidth = towerWidthPx / 2;
+        let baseX = originX - towerHalfWidth;
+        let baseY = originY - pixelHeight;
+
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(baseX, baseY, towerWidthPx, pixelHeight);
+        ctx.fillStyle = '#586776';
+        for (let py = 0; py < pixelHeight; py += pSize) {
+          for (let px = 0; px < towerWidthPx; px += pSize) {
+            let row = Math.floor(py / (pSize * 2));
+            let col = Math.floor(px / (pSize * 2));
+            if (px < pSize || px > towerWidthPx - pSize)
+              ctx.fillRect(baseX + px, baseY + py, pSize, pSize);
+            else if (
+              (row % 2 === 0 && col % 3 === 0) ||
+              (row % 2 !== 0 && col % 3 === 1)
+            )
+              ctx.fillRect(baseX + px, baseY + py, pSize, pSize);
+          }
+        }
+        let battlementsY = baseY - 2 * pSize;
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(baseX, battlementsY, 2 * pSize, 2 * pSize);
+        ctx.fillRect(
+          baseX + towerWidthPx / 2 - pSize,
+          battlementsY,
+          2 * pSize,
+          2 * pSize
+        );
+        ctx.fillRect(
+          baseX + towerWidthPx - 2 * pSize,
+          battlementsY,
+          2 * pSize,
+          2 * pSize
+        );
+        if (heightMath > 3) {
+          ctx.fillStyle = '#2c1810';
+          let doorW = 4 * pSize;
+          let doorH = 6 * pSize;
+          ctx.fillRect(originX - doorW / 2, originY - doorH, doorW, doorH);
+          ctx.fillRect(
+            originX - doorW / 2 + pSize,
+            originY - doorH - pSize,
+            doorW - 2 * pSize,
+            pSize
+          );
+        }
+      }
+
+      function drawGrid() {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.font = '10px monospace';
+        for (let x = 5; x <= 40; x += 5) {
+          let pos = toCanvas(x, 0);
+          ctx.beginPath();
+          ctx.moveTo(pos.x, 0);
+          ctx.lineTo(pos.x, canvas.height);
+          ctx.stroke();
+          ctx.fillText(x, pos.x + 2, originY + 15);
+        }
+        for (let y = 0; y <= 25; y += 5) {
+          let pos = toCanvas(0, y);
+          ctx.beginPath();
+          ctx.moveTo(0, pos.y);
+          ctx.lineTo(canvas.width, pos.y);
+          ctx.stroke();
+          ctx.fillText(y, originX - 25, pos.y - 2);
+        }
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, originY);
+        ctx.lineTo(canvas.width, originY);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(originX, 0);
+        ctx.lineTo(originX, canvas.height);
+        ctx.stroke();
+      }
+
+      function drawArcher() {
+        let pos = toCanvas(0, params.c);
+        let cx = pos.x - 2 * pSize;
+        let cy = pos.y + 3 * pSize;
+        const skin = '#ffccaa';
+        const body = '#3498db';
+        const pants = '#2c3e50';
+        const bow = '#8B4513';
+        for (let i = 0; i < 3; i++)
+          for (let j = 0; j < 3; j++) drawPixelRect(i, j + 5, skin, cx, cy);
+        for (let i = 0; i < 3; i++)
+          for (let j = 1; j < 5; j++) drawPixelRect(i, j, body, cx, cy);
+        drawPixelRect(0, 0, pants, cx, cy);
+        drawPixelRect(0, -1, pants, cx, cy);
+        drawPixelRect(2, 0, pants, cx, cy);
+        drawPixelRect(2, -1, pants, cx, cy);
+        drawPixelRect(3, 3, bow, cx, cy);
+        drawPixelRect(4, 4, bow, cx, cy);
+        drawPixelRect(4, 2, bow, cx, cy);
+        drawPixelRect(3, 1, bow, cx, cy);
+      }
+
+      function drawApple() {
+        let pos = toCanvas(apple.x, apple.y);
+        let cx = pos.x;
+        let cy = pos.y;
+        ctx.fillStyle = '#e74c3c';
+        ctx.fillRect(cx - 2 * pSize, cy - 2 * pSize, 4 * pSize, 4 * pSize);
+        ctx.fillStyle = '#2ecc71';
+        ctx.fillRect(cx, cy - 4 * pSize, 2 * pSize, 2 * pSize);
+      }
+
+      function drawArrow() {
+        let currentX, currentY, currentA, currentB;
+        if (arrow.active) {
+          currentX = arrow.x;
+          currentY = arrow.y;
+          currentA = params.a;
+          currentB = params.b;
+        } else {
+          currentX = 0;
+          currentY = params.c;
+          currentA = parseFloat(inputA.value) || 0;
+          currentB = parseFloat(inputB.value) || 0;
+        }
+
+        let pos = toCanvas(currentX, currentY);
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+        let slope = 2 * currentA * currentX + currentB;
+        let angle = Math.atan(-slope);
+        ctx.rotate(angle);
+        ctx.fillStyle = '#ecf0f1';
+        ctx.fillRect(-15, -2, 25, 4);
+        ctx.fillStyle = '#95a5a6';
+        ctx.fillRect(10, -2, 4, 4);
+        ctx.fillStyle = '#e74c3c';
+        ctx.fillRect(-15, -4, 4, 2);
+        ctx.fillRect(-15, 2, 4, 2);
+        ctx.restore();
+      }
+
+      function drawSimulation() {
+        if (gameState !== 'PLAYING') return;
+
+        let simA = parseFloat(inputA.value) || 0;
+        let simB = parseFloat(inputB.value) || 0;
+        let simC = parseFloat(inputC.value);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.strokeStyle = '#2ecc71';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([10, 10]);
+        let startPos = toCanvas(0, simC);
+        ctx.moveTo(startPos.x, startPos.y);
+        for (let i = 0; i < 45; i += 0.5) {
+          let y = simA * i * i + simB * i + simC;
+          let p = toCanvas(i, y);
+          ctx.lineTo(p.x, p.y);
+          if (p.y > canvas.height) break;
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawForestBackground();
+        drawCastleTower();
+        drawGrid();
+        drawSimulation();
+        drawArcher();
+        drawApple();
+        drawArrow();
+      }
+
+      function fireArrow() {
+        if (gameState !== 'PLAYING') return;
+        if (arrow.active) return;
+
+        stopTimer();
+        gameState = 'ANIMATING';
+        btnFire.disabled = true;
+
+        params.a = parseFloat(inputA.value);
+        params.b = parseFloat(inputB.value);
+        params.c = parseFloat(inputC.value);
+        arrow.x = 0;
+        arrow.y = params.c;
+        arrow.active = true;
+        animate();
+      }
+
+      function animate() {
+        if (!arrow.active) return;
+
+        arrow.x += 0.4;
+        arrow.y = params.a * arrow.x * arrow.x + params.b * arrow.x + params.c;
+
+        draw();
+
+        let dx = arrow.x - apple.x;
+        let dy = arrow.y - apple.y;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < 0.8) {
+          arrow.active = false;
+          cancelAnimationFrame(animationId);
+          handleRoundWin();
+          return;
+        }
+
+        if (arrow.y < -5 || arrow.x > 45) {
+          arrow.active = false;
+          cancelAnimationFrame(animationId);
+          handleRoundLoss('Errou o alvo!');
+          return;
+        }
+
+        animationId = requestAnimationFrame(animate);
+      }
+
+      inputA.addEventListener('input', () => {
+        if (gameState === 'PLAYING') draw();
+      });
+      inputB.addEventListener('input', () => {
+        if (gameState === 'PLAYING') draw();
+      });
+
+      draw();
+    </script>
+  </body>
+</html>
